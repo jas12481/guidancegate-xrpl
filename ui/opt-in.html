@@ -194,6 +194,9 @@
         
         let issuerInfo = {};
         
+        // Wait for Crossmark to be available
+        // Crossmark SDK is loaded from CDN and should be available as window.crossmark or window.Crossmark
+        
         // Load issuer info
         async function loadIssuerInfo() {
             if (issuerKey) {
@@ -241,14 +244,28 @@
             
             try {
                 // Check if Crossmark is available
-                if (!window.crossmark) {
+                const crossmark = window.crossmark || window.Crossmark;
+                if (!crossmark) {
                     throw new Error('Crossmark wallet not found. Please install Crossmark extension from https://crossmark.io');
                 }
                 
                 // Get user's wallet address
                 btn.textContent = 'Requesting wallet connection...';
-                const signInResponse = await window.crossmark.signInAndWait();
-                const userAddress = signInResponse.address;
+                
+                // Try to connect - Crossmark SDK typically uses request() method
+                let connectResponse;
+                if (crossmark.request) {
+                    connectResponse = await crossmark.request({ method: 'connect' });
+                } else if (crossmark.connect) {
+                    connectResponse = await crossmark.connect();
+                } else {
+                    throw new Error('Crossmark API not available. Please ensure Crossmark extension is installed and up to date.');
+                }
+                
+                const userAddress = connectResponse?.address || connectResponse?.data?.address;
+                if (!userAddress) {
+                    throw new Error('Failed to get wallet address. Please ensure Crossmark is unlocked.');
+                }
                 
                 btn.textContent = 'Creating trustline...';
                 
@@ -264,11 +281,30 @@
                 };
                 
                 // Sign and submit via Crossmark
-                const txResponse = await window.crossmark.signAndSubmitAndWait(trustSet);
+                let txResponse;
+                if (crossmark.request) {
+                    txResponse = await crossmark.request({
+                        method: 'submit',
+                        params: { transaction: trustSet }
+                    });
+                } else if (crossmark.signAndSubmit) {
+                    txResponse = await crossmark.signAndSubmit(trustSet);
+                } else {
+                    throw new Error('Crossmark submit method not available.');
+                }
                 
-                if (txResponse.response.result.meta.TransactionResult === 'tesSUCCESS') {
+                // Parse response - handle different response structures
+                const result = txResponse?.result || 
+                             txResponse?.data?.result || 
+                             txResponse?.response?.result ||
+                             txResponse;
+                
+                const transactionResult = result?.meta?.TransactionResult || 
+                                        result?.engine_result;
+                
+                if (transactionResult === 'tesSUCCESS' || transactionResult === 'tecPATH_DRY') {
                     // Success!
-                    const txHash = txResponse.response.result.hash;
+                    const txHash = result?.hash || result?.tx_json?.hash;
                     const explorerUrl = `https://testnet.xrpl.org/transactions/${txHash}`;
                     
                     resultDiv.innerHTML = `
@@ -283,13 +319,14 @@
                         </div>
                     `;
                 } else {
-                    throw new Error('Transaction failed: ' + txResponse.response.result.meta.TransactionResult);
+                    throw new Error('Transaction failed: ' + (transactionResult || 'Unknown error'));
                 }
             } catch (error) {
                 resultDiv.innerHTML = `
                     <div class="error">
                         <h3>❌ Opt-in Failed</h3>
                         <p>${error.message}</p>
+                        <p style="font-size: 12px; margin-top: 10px;">If this persists, please ensure Crossmark extension is installed and unlocked.</p>
                         <button onclick="createTrustline()" class="retry-btn">
                             Retry
                         </button>
