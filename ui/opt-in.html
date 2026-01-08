@@ -197,9 +197,9 @@
         // Load issuer info
         async function loadIssuerInfo() {
             if (issuerKey) {
-                // Load from API
+                // Load from API using query parameter (Vercel routing compatibility)
                 try {
-                    const response = await fetch(`${API_BASE}/api/issuer-info/${issuerKey}`);
+                    const response = await fetch(`${API_BASE}/api/issuer-info?issuer=${issuerKey}`);
                     if (!response.ok) {
                         throw new Error(`Failed to load issuer: ${response.statusText}`);
                     }
