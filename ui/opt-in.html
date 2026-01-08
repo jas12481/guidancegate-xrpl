@@ -181,7 +181,6 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/@xrplf/crossmark@latest/dist/index.umd.js"></script>
     <script>
         // Get API base URL (works for both localhost and Vercel)
         const API_BASE = window.location.origin;
@@ -243,35 +242,144 @@
             resultDiv.innerHTML = '';
             
             try {
-                // Wait a bit for Crossmark extension to inject
-                await new Promise(resolve => setTimeout(resolve, 100));
+                // Wait for Crossmark extension to inject (extension loads asynchronously)
+                let crossmark = null;
+                for (let i = 0; i < 10; i++) {
+                    crossmark = window.crossmark;
+                    if (crossmark) break;
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
                 
                 // Check if Crossmark extension is available
-                // Crossmark extension injects window.crossmark directly
-                if (!window.crossmark) {
+                if (!crossmark) {
                     throw new Error('Crossmark wallet not found. Please install Crossmark extension from https://crossmark.io and refresh the page.');
                 }
+                
+                // Use crossmark.api if available (this is where the actual API methods are)
+                const api = crossmark.api || crossmark;
                 
                 // Get user's wallet address
                 btn.textContent = 'Requesting wallet connection...';
                 
-                // Crossmark extension API: signIn() returns address
                 let userAddress;
-                try {
-                    const signInResponse = await window.crossmark.signIn();
-                    userAddress = signInResponse?.address;
-                } catch (signInError) {
-                    // If signIn doesn't work, try alternative methods
-                    if (window.crossmark.request) {
-                        const connectResponse = await window.crossmark.request({ method: 'connect' });
-                        userAddress = connectResponse?.address || connectResponse?.data?.address;
-                    } else {
-                        throw new Error('Failed to connect to Crossmark. Please ensure Crossmark is unlocked.');
+                
+                // Use signInAndWait() - the working method from Crossmark docs
+                // Check multiple possible SDK paths
+                const sdkPaths = [
+                    api.sdk?.async,
+                    api.sdk,
+                    crossmark.sdk?.async,
+                    crossmark.sdk,
+                    window.xrpl?.crossmark?.sdk?.async,
+                    window.xrpl?.crossmark?.sdk
+                ];
+                
+                for (const sdkPath of sdkPaths) {
+                    if (sdkPath && typeof sdkPath.signInAndWait === 'function') {
+                        try {
+                            const signInResult = await sdkPath.signInAndWait();
+                            // Response structure: { request, response, createdAt, resolvedAt }
+                            if (signInResult.response) {
+                                userAddress = signInResult.response.address || 
+                                             signInResult.response.account ||
+                                             signInResult.response.data?.address;
+                            }
+                            if (!userAddress && signInResult.address) {
+                                userAddress = signInResult.address;
+                            }
+                            if (userAddress) break;
+                        } catch (e) {
+                            console.log('signInAndWait failed:', e.message);
+                        }
                     }
                 }
                 
-                if (!userAddress) {
-                    throw new Error('Failed to get wallet address. Please ensure Crossmark is unlocked and try again.');
+                // Fallback: Connect and poll session/connected (if signInAndWait not available)
+                if (!userAddress && typeof api.request === 'function') {
+                    const connectionId = await api.request({ 
+                        method: 'connect',
+                        params: {}
+                    });
+                    
+                    // Poll session and connected properties
+                    for (let i = 0; i < 10; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
+                        if (crossmark.session?.address && crossmark.session.address.startsWith('r')) {
+                            userAddress = crossmark.session.address;
+                            break;
+                        }
+                        if (api.connected && typeof api.connected === 'string' && api.connected.startsWith('r')) {
+                            userAddress = api.connected;
+                            break;
+                        }
+                    }
+                } else if (typeof api.signIn === 'function') {
+                    connectResponse = await api.signIn();
+                } else if (typeof api.connect === 'function') {
+                    connectResponse = await api.connect();
+                } else if (typeof api.getAddress === 'function') {
+                    userAddress = await api.getAddress();
+                } else {
+                    console.error('Available Crossmark API methods:', Object.keys(api));
+                    throw new Error('Crossmark API not recognized. Available methods: ' + Object.keys(api).join(', '));
+                }
+                
+                // Extract address from response
+                // Note: getAddress might return UUID, check session for actual address
+                if (connectResponse) {
+                    userAddress = connectResponse?.address || 
+                                 connectResponse?.data?.address ||
+                                 connectResponse?.result?.address ||
+                                 connectResponse?.account ||
+                                 connectResponse?.wallet?.address;
+                }
+                
+                // Check session for address (most likely location)
+                if (!userAddress && crossmark.session) {
+                    userAddress = crossmark.session.address || 
+                                 crossmark.session.account ||
+                                 crossmark.session.wallet?.address ||
+                                 crossmark.session.accountAddress ||
+                                 crossmark.session.userAddress;
+                }
+                
+                // Check api.connected directly
+                if (!userAddress && api.connected) {
+                    const connected = api.connected;
+                    userAddress = connected?.address || 
+                                 connected?.account || 
+                                 connected?.wallet?.address ||
+                                 connected?.accountAddress;
+                }
+                
+                // Check api.sdk for address
+                if (!userAddress && api.sdk) {
+                    try {
+                        userAddress = api.sdk?.address || 
+                                     api.sdk?.account || 
+                                     api.sdk?.wallet?.address ||
+                                     api.sdk?.accountAddress;
+                    } catch (e) {
+                        // Ignore errors accessing sdk
+                    }
+                }
+                
+                // If we got a UUID instead of address, try getAccount
+                if (userAddress && !userAddress.startsWith('r') && typeof api.request === 'function') {
+                    try {
+                        const accountResponse = await api.request({ method: 'getAccount' });
+                        const accountAddress = accountResponse?.address || accountResponse?.account || accountResponse;
+                        if (accountAddress && accountAddress.startsWith('r')) {
+                            userAddress = accountAddress;
+                        }
+                    } catch (e) {
+                        // Ignore
+                    }
+                }
+                
+                if (!userAddress || !userAddress.startsWith('r')) {
+                    throw new Error('Failed to get valid XRPL wallet address. Please ensure Crossmark is unlocked and try again.');
                 }
                 
                 btn.textContent = 'Creating trustline...';
@@ -287,20 +395,44 @@
                     }
                 };
                 
-                // Sign and submit via Crossmark
-                // Crossmark extension API: signAndSubmit() signs and submits transaction
+                // Sign and submit via Crossmark API
+                // Try signAndSubmitAndWait first (similar to signInAndWait pattern)
                 let txResponse;
-                try {
-                    txResponse = await window.crossmark.signAndSubmit(trustSet);
-                } catch (submitError) {
-                    // If signAndSubmit doesn't work, try alternative
-                    if (window.crossmark.request) {
-                        txResponse = await window.crossmark.request({
+                
+                // Reuse sdkPaths array (same paths as signInAndWait)
+                const submitSdkPaths = [
+                    api.sdk?.async,
+                    api.sdk,
+                    crossmark.sdk?.async,
+                    crossmark.sdk
+                ];
+                
+                let submitted = false;
+                for (const sdkPath of submitSdkPaths) {
+                    if (sdkPath && typeof sdkPath.signAndSubmitAndWait === 'function') {
+                        try {
+                            txResponse = await sdkPath.signAndSubmitAndWait(trustSet);
+                            submitted = true;
+                            break;
+                        } catch (e) {
+                            console.log('signAndSubmitAndWait failed:', e.message);
+                        }
+                    }
+                }
+                
+                // Fallback to other methods
+                if (!submitted) {
+                    if (typeof api.signAndSubmit === 'function') {
+                        txResponse = await api.signAndSubmit(trustSet);
+                    } else if (typeof api.request === 'function') {
+                        txResponse = await api.request({
                             method: 'submit',
                             params: { transaction: trustSet }
                         });
+                    } else if (typeof api.submit === 'function') {
+                        txResponse = await api.submit(trustSet);
                     } else {
-                        throw new Error('Failed to submit transaction. Please try again.');
+                        throw new Error('Crossmark submit method not available. Available API methods: ' + Object.keys(api).join(', '));
                     }
                 }
                 
