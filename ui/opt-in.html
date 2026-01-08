@@ -262,6 +262,7 @@
                 btn.textContent = 'Requesting wallet connection...';
                 
                 let userAddress;
+                let connectResponse; // Declare connectResponse for fallback methods
                 
                 // Method 0: Try sdk.async.signInAndWait() if available (from docs) - EXACT COPY FROM WORKING TEST FILE
                 // Check multiple possible SDK paths
