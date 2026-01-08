@@ -439,6 +439,54 @@
                     throw new Error(`Invalid address format: ${userAddress}. Please ensure Crossmark is properly connected.`);
                 }
                 
+                // Check if user already has a trustline with this issuer
+                btn.textContent = 'Checking existing trustline...';
+                try {
+                    const checkResponse = await fetch(`${API_BASE}/api/check-trustline`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            wallet_address: userAddress
+                        })
+                    });
+                    
+                    if (checkResponse.ok) {
+                        const checkData = await checkResponse.json();
+                        // Check if this specific issuer is in the opted-in list
+                        // Match by issuer name (case-insensitive partial match)
+                        const hasThisIssuer = checkData.opted_in_issuers && 
+                            checkData.opted_in_issuers.some(name => {
+                                const issuerNameLower = issuerInfo.name.toLowerCase();
+                                const checkedNameLower = name.toLowerCase();
+                                return issuerNameLower.includes(checkedNameLower) || 
+                                       checkedNameLower.includes(issuerNameLower);
+                            });
+                        
+                        if (hasThisIssuer) {
+                            // User already has trustline - show success and return
+                            const resultDiv = document.getElementById('result');
+                            resultDiv.innerHTML = `
+                                <div class="success">
+                                    <h3>✅ Already Opted In!</h3>
+                                    <p>You already have a trustline with <strong>${issuerInfo.name}</strong>.</p>
+                                    <p>You can now access resources from this issuer.</p>
+                                    <button onclick="returnToDify()" class="return-btn">
+                                        Return to GuidanceGate
+                                    </button>
+                                </div>
+                            `;
+                            btn.textContent = 'Already Opted In';
+                            btn.disabled = true;
+                            return;
+                        }
+                    }
+                } catch (checkError) {
+                    console.log('Could not check existing trustline:', checkError);
+                    // Continue with trustline creation if check fails
+                }
+                
                 btn.textContent = 'Creating trustline...';
                 
                 // Create TrustSet transaction
