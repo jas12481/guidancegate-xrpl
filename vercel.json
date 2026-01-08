@@ -4,16 +4,6 @@
       "runtime": "python3.9"
     }
   },
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/ui/(.*)",
-      "dest": "/ui/$1"
-    }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",
