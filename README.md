@@ -21,9 +21,8 @@ This agent only surfaces financial resources from verified issuers that users ha
 
 ### 1. Explicit Opt-In via Trustlines
 Users create XRPL trustlines to verified issuers through blockchain transactions. This is not just an app setting—it's an on-chain action that:
-- Creates a permanent, auditable record
+- Creates a permanent, auditable consent record
 - Can be verified by anyone
-- Can be reversed by removing the trustline
 - Works across any XRPL-compatible service
 
 ### 2. Trustline-Gated Resources
@@ -50,7 +49,6 @@ This project leverages multiple core XRPL features:
    - Primary mechanism for explicit on-chain opt-in/consent
    - Users create trustlines to verified guidance issuers
    - Creates permanent, auditable consent records on the ledger
-   - Reversible by removing trustlines
 
 2. **AccountLines Queries**
    - Queries user's existing trustlines to verify opt-in status
@@ -75,7 +73,7 @@ This project leverages multiple core XRPL features:
    - Serverless API endpoints for trustline verification
 
 ### Issuer Registry
-For MVP we demonstrate with a demo guidance issuer; in production this would be a verified organisation or a registry-backed issuer.
+For MVP we demonstrate with demo guidance issuers; in production these would be verified organisations or registry-backed issuers.
 
 **Verified Guidance Issuers:**
 - Community Aid Financial Services (GID) - Foundational financial literacy
@@ -94,7 +92,7 @@ For MVP we demonstrate with a demo guidance issuer; in production this would be 
 ```bash
 # Clone repository
 git clone <repository-url>
-cd jas-finchatbot-app
+cd guidancegate-xrpl
 
 # Install dependencies
 pip install -r requirements.txt
@@ -198,22 +196,37 @@ if access_status["has_access"]:
 - Escrow-based allowance release
 - Enhanced caregiver tools
 - DID integration
-- Multiple guidance issuers
+- Additional guidance issuers
 
 ## Project Structure
 
 ```
-jas-finchatbot-app/
+guidancegate-xrpl/
+├── api/                    # Vercel serverless functions
+│   ├── check-trustline.py  # Trustline verification endpoint
+│   ├── issuer-info.py     # Issuer information endpoint
+│   ├── issuer-products.py # Products listing endpoint
+│   └── requirements.txt   # API dependencies
 ├── config/
-│   └── issuers.py          # Issuer registry configuration
+│   └── issuers.py         # Issuer registry configuration
 ├── src/
-│   ├── xrpl_client.py      # XRPL connection and operations
-│   ├── setup_flow.py       # Setup flow management
-│   └── access_control.py   # Resource access control
-├── demo/
-│   └── demo.py             # Demo script
-├── requirements.txt        # Python dependencies
-└── README.md              # This file
+│   ├── xrpl_client.py     # XRPL connection and operations
+│   ├── setup_flow.py      # Setup flow management
+│   └── access_control.py  # Resource access control
+├── ui/                    # Frontend pages
+│   ├── opt-in.html        # Opt-in page with Crossmark
+│   ├── products.html      # Product marketplace
+│   └── test-crossmark.html # Crossmark testing utility
+├── demo/                  # Demo and testing scripts
+│   ├── demo.py            # Main demo script
+│   ├── generate_issuers.py
+│   ├── quick_test.py
+│   └── setup_issuers.py
+├── vercel.json            # Vercel deployment configuration
+├── requirements.txt       # Python dependencies
+├── README.md             # This file
+├── DEPLOYMENT.md         # Deployment instructions
+└── QUICKSTART.md         # Quick start guide
 ```
 
 ## Why This Approach?
@@ -222,7 +235,7 @@ jas-finchatbot-app/
 XRPL trustlines provide a native mechanism for explicit, on-chain consent. Unlike app settings, trustlines are:
 - **Transparent**: Visible on the public ledger
 - **Auditable**: Anyone can verify what issuers a user has opted into
-- **Reversible**: Users can remove trustlines at any time
+- **Permanent**: Creates a permanent, auditable consent record on the ledger
 - **Portable**: Works across any XRPL-compatible service
 
 ### XRP Payments for Products
