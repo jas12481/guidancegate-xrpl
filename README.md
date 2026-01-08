@@ -12,13 +12,10 @@ This agent only surfaces financial resources from verified issuers that users ha
 - **Guidance issuer trustline**: Required explicit opt-in to access financial guidance resources
 - This is the only trustline that gates access
 
-### Optional Enhancement
-- **RLUSD trustline**: Optional trustline for enhanced features (balance display, payments)
-- Does NOT gate access - resources are available regardless of RLUSD trustline
-
-### Always Available
-- **RLUSD as unit of account**: All financial examples use RLUSD as stable reference unit
-- No trustline required - RLUSD is used for explanations regardless of trustline status
+### Payment Mechanism
+- **XRP Payments**: Users pay for products/services directly in XRP
+- Payments are sent from user wallet to issuer address via XRPL Payment transactions
+- All transactions are recorded on-chain and verifiable
 
 ## How It Works
 
@@ -32,10 +29,10 @@ Users create XRPL trustlines to verified issuers through blockchain transactions
 ### 2. Trustline-Gated Resources
 The agent only surfaces financial resources from issuers the user has trustlined. This creates a hard boundary: no trustline = no access.
 
-### 3. RLUSD Integration
-- RLUSD trustline is optional (enhancement only)
-- RLUSD is always used as unit of account in all financial examples
-- Budgeting, allowances, and savings goals are expressed in RLUSD
+### 3. XRP Payment Integration
+- Users purchase products/services using XRP payments
+- Payments are processed directly on the XRPL ledger
+- Transaction memos track which product was purchased
 
 ## Technical Implementation
 
@@ -46,18 +43,44 @@ The agent only surfaces financial resources from issuers the user has trustlined
 - **Agent Platform**: Dify (integration ready)
 
 ### XRPL Features Used
-- **Trustlines** (TrustSet transactions): Explicit opt-in mechanism
-- **AccountLines queries**: Check existing trustlines
-- **RLUSD**: Stable reference unit (optional trustline)
+
+This project leverages multiple core XRPL features:
+
+1. **Trustlines (TrustSet Transactions)**
+   - Primary mechanism for explicit on-chain opt-in/consent
+   - Users create trustlines to verified guidance issuers
+   - Creates permanent, auditable consent records on the ledger
+   - Reversible by removing trustlines
+
+2. **AccountLines Queries**
+   - Queries user's existing trustlines to verify opt-in status
+   - Enables real-time access control based on on-chain state
+   - Used by API endpoints to check user permissions
+
+3. **Payment Transactions**
+   - XRPL native Payment transactions for product purchases
+   - Users pay issuers directly in XRP (e.g., 6 XRP for a product)
+   - Transaction memos include product identifiers for tracking
+   - Direct on-chain payments from user wallet to issuer address
+
+4. **Crossmark Wallet Integration**
+   - Browser extension wallet for user-friendly XRPL interactions
+   - Handles trustline creation and payment signing
+   - Provides seamless UX similar to MetaMask for Ethereum
+   - Enables one-click opt-in and purchase flows
+
+5. **JSON-RPC Client**
+   - Direct connection to XRPL Testnet/Mainnet
+   - Real-time ledger queries and transaction submission
+   - Serverless API endpoints for trustline verification
 
 ### Issuer Registry
 For MVP we demonstrate with a demo guidance issuer; in production this would be a verified organisation or a registry-backed issuer.
 
-**Required Issuer:**
-- Guidance issuer: Provides financial guidance resources (required trustline)
-
-**Optional Issuer:**
-- RLUSD: Stablecoin for reference unit (optional trustline)
+**Verified Guidance Issuers:**
+- Community Aid Financial Services (GID) - Foundational financial literacy
+- InclusiveCare Finance Network (ICN) - Supported decision-making for disabilities
+- CalmBridge Financial Wellbeing (CBW) - Low-pressure financial guidance
 
 ## Setup
 
@@ -93,11 +116,15 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
 ### Configuration
 
 1. Update issuer addresses in `config/issuers.py`:
-   - Replace `rYOUR_ISSUER_ADDRESS` with your test issuer address
-   - Replace `rRLUSD_ISSUER_ADDRESS` with RLUSD issuer address (if using)
+   - Issuer addresses are already configured for testnet
+   - All issuers use XRPL Testnet addresses
 
 2. For testnet, use XRPL testnet faucet:
    - https://xrpl.org/xrp-testnet-faucet.html
+
+3. Install Crossmark wallet extension:
+   - https://crossmark.io
+   - Required for opt-in and payment flows
 
 ### Running the Demo
 
@@ -112,7 +139,7 @@ The demo will:
 3. Check setup status
 4. Create guidance issuer trustline (required)
 5. Check access and show permitted resources
-6. Display RLUSD examples (no trustline needed)
+6. Demonstrate product purchase flow
 
 ## Usage
 
@@ -144,12 +171,27 @@ if access_status["has_access"]:
 ## Key Features
 
 ### ✅ MVP Features
-- XRPL trustline query and creation
-- Guidance issuer trustline as required opt-in
-- Trustline-gated resource access
-- RLUSD as unit of account (always available)
+
+**Core Functionality:**
+- XRPL trustline query and creation via Crossmark wallet
+- Guidance issuer trustline as required opt-in mechanism
+- Trustline-gated resource access with real-time verification
+- XRP payment integration for product purchases
 - Setup flow with status checking
-- Access control based on trustlines
+- Access control based on on-chain trustlines
+
+**User Experience:**
+- AI-powered financial guidance agent (Dify integration)
+- One-click opt-in via Crossmark wallet extension
+- Product marketplace with XRPL payment integration
+- Multiple verified guidance issuers (Community Aid, InclusiveCare, CalmBridge)
+- Seamless flow: Chat → Opt-in → Access Resources → Purchase Products
+
+**Technical Implementation:**
+- Serverless API endpoints (Vercel deployment)
+- Real-time trustline verification
+- Crossmark wallet integration for transactions
+- Production-ready deployment with CORS support
 
 ### 🚀 Future Enhancements (Roadmap)
 - Multi-signature support for caregiver co-approval
@@ -183,12 +225,38 @@ XRPL trustlines provide a native mechanism for explicit, on-chain consent. Unlik
 - **Reversible**: Users can remove trustlines at any time
 - **Portable**: Works across any XRPL-compatible service
 
-### RLUSD as Unit of Account
-RLUSD provides a stable reference unit for all financial guidance, ensuring:
-- Consistent value representation (1 RLUSD = 1 USD)
-- Predictable budgeting examples
-- Clear savings goals
-- No trustline required for using RLUSD as reference
+### XRP Payments for Products
+XRPL Payment transactions enable direct on-chain purchases:
+- Users pay issuers directly in XRP
+- All transactions are recorded on the public ledger
+- Transaction memos provide purchase tracking
+- No intermediaries - direct wallet-to-wallet payments
+
+## SDG Alignment (BGA Bounty Track)
+
+This project aligns with multiple UN Sustainable Development Goals:
+
+**SDG 1: No Poverty**
+- Financial inclusion for vulnerable and underserved populations
+- Access to financial education and resources regardless of income level
+
+**SDG 3: Good Health & Well-being**
+- Supports mental health through CalmBridge Financial Wellbeing
+- Reduces financial stress and anxiety
+
+**SDG 4: Quality Education**
+- Financial literacy education for all
+- Accessible learning resources for special needs individuals
+
+**SDG 10: Reduced Inequalities**
+- Financial inclusion for individuals with disabilities (InclusiveCare)
+- Support for caregivers managing shared finances
+- Non-predatory financial guidance for vulnerable users
+
+**SDG 16: Peace, Justice & Strong Institutions**
+- Transparent, on-chain consent mechanisms
+- Auditable financial guidance relationships
+- User control and data sovereignty
 
 ## Contributing
 
@@ -202,7 +270,46 @@ This is a hackathon project. For production use, consider:
 
 [Add your license here]
 
+## Complete User Flow
+
+1. **User interacts with Dify AI agent** → Requests financial guidance
+2. **Agent checks trustline status** → Calls `/api/check-trustline` endpoint
+3. **If no trustline** → Agent provides opt-in link
+4. **User clicks opt-in link** → Opens `/ui/opt-in.html?issuer=community_aid`
+5. **User connects Crossmark wallet** → Signs TrustSet transaction
+6. **Trustline created on XRPL** → Transaction confirmed on ledger
+7. **User returns to agent** → Agent verifies trustline, grants access
+8. **Agent suggests products** → Provides link to `/ui/products.html?issuer=community_aid`
+9. **User browses products** → Connects wallet, views available products
+10. **User purchases product** → Signs Payment transaction via Crossmark
+11. **Payment confirmed** → User gains access to product resources
+
+## API Endpoints
+
+**Deployed on Vercel:**
+- `POST /api/check-trustline` - Verify user's trustline status
+- `GET /api/issuer-info?issuer={key}` - Get issuer information
+- `GET /api/issuer-products?issuer={key}&wallet_address={address}` - Get products (requires trustline)
+
+**UI Pages:**
+- `/ui/opt-in.html?issuer={key}` - Opt-in page with Crossmark integration
+- `/ui/products.html?issuer={key}` - Product marketplace with payment integration
+
+## Verified Issuers
+
+1. **Community Aid Financial Services** (GID)
+   - Address: `rJcM4kRyvK3wQ8ngYZJ62iZBqbPcVGs8gT`
+   - Focus: Foundational financial literacy for vulnerable users
+
+2. **InclusiveCare Finance Network** (ICN)
+   - Address: `r9ZZMzNw4Z9bPhkSZ1DhnF13f8jxeE9JCu`
+   - Focus: Supported decision-making for individuals with disabilities
+
+3. **CalmBridge Financial Wellbeing** (CBW)
+   - Address: `rLZu53zYBYT6fcq38uNcnVYcEeUuBe2Jd4`
+   - Focus: Low-pressure financial guidance for anxiety/stress
+
 ## Acknowledgments
 
-Built for NUS FinTech Summit 2026 Hackathon (Ripple Challenge)
+Built for NUS FinTech Summit 2026 Hackathon (Ripple Challenge & BGA Bounty Track)
 
