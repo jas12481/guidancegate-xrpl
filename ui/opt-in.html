@@ -243,28 +243,35 @@
             resultDiv.innerHTML = '';
             
             try {
-                // Check if Crossmark is available
-                const crossmark = window.crossmark || window.Crossmark;
-                if (!crossmark) {
-                    throw new Error('Crossmark wallet not found. Please install Crossmark extension from https://crossmark.io');
+                // Wait a bit for Crossmark extension to inject
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Check if Crossmark extension is available
+                // Crossmark extension injects window.crossmark directly
+                if (!window.crossmark) {
+                    throw new Error('Crossmark wallet not found. Please install Crossmark extension from https://crossmark.io and refresh the page.');
                 }
                 
                 // Get user's wallet address
                 btn.textContent = 'Requesting wallet connection...';
                 
-                // Try to connect - Crossmark SDK typically uses request() method
-                let connectResponse;
-                if (crossmark.request) {
-                    connectResponse = await crossmark.request({ method: 'connect' });
-                } else if (crossmark.connect) {
-                    connectResponse = await crossmark.connect();
-                } else {
-                    throw new Error('Crossmark API not available. Please ensure Crossmark extension is installed and up to date.');
+                // Crossmark extension API: signIn() returns address
+                let userAddress;
+                try {
+                    const signInResponse = await window.crossmark.signIn();
+                    userAddress = signInResponse?.address;
+                } catch (signInError) {
+                    // If signIn doesn't work, try alternative methods
+                    if (window.crossmark.request) {
+                        const connectResponse = await window.crossmark.request({ method: 'connect' });
+                        userAddress = connectResponse?.address || connectResponse?.data?.address;
+                    } else {
+                        throw new Error('Failed to connect to Crossmark. Please ensure Crossmark is unlocked.');
+                    }
                 }
                 
-                const userAddress = connectResponse?.address || connectResponse?.data?.address;
                 if (!userAddress) {
-                    throw new Error('Failed to get wallet address. Please ensure Crossmark is unlocked.');
+                    throw new Error('Failed to get wallet address. Please ensure Crossmark is unlocked and try again.');
                 }
                 
                 btn.textContent = 'Creating trustline...';
@@ -281,30 +288,44 @@
                 };
                 
                 // Sign and submit via Crossmark
+                // Crossmark extension API: signAndSubmit() signs and submits transaction
                 let txResponse;
-                if (crossmark.request) {
-                    txResponse = await crossmark.request({
-                        method: 'submit',
-                        params: { transaction: trustSet }
-                    });
-                } else if (crossmark.signAndSubmit) {
-                    txResponse = await crossmark.signAndSubmit(trustSet);
-                } else {
-                    throw new Error('Crossmark submit method not available.');
+                try {
+                    txResponse = await window.crossmark.signAndSubmit(trustSet);
+                } catch (submitError) {
+                    // If signAndSubmit doesn't work, try alternative
+                    if (window.crossmark.request) {
+                        txResponse = await window.crossmark.request({
+                            method: 'submit',
+                            params: { transaction: trustSet }
+                        });
+                    } else {
+                        throw new Error('Failed to submit transaction. Please try again.');
+                    }
                 }
                 
-                // Parse response - handle different response structures
-                const result = txResponse?.result || 
-                             txResponse?.data?.result || 
-                             txResponse?.response?.result ||
-                             txResponse;
+                // Parse response - Crossmark returns response in different formats
+                let result, transactionResult, txHash;
                 
-                const transactionResult = result?.meta?.TransactionResult || 
-                                        result?.engine_result;
+                if (txResponse?.response?.result) {
+                    // Standard Crossmark response format
+                    result = txResponse.response.result;
+                    transactionResult = result.meta?.TransactionResult;
+                    txHash = result.hash;
+                } else if (txResponse?.result) {
+                    // Alternative response format
+                    result = txResponse.result;
+                    transactionResult = result.meta?.TransactionResult || result.engine_result;
+                    txHash = result.hash || result.tx_json?.hash;
+                } else {
+                    // Direct result
+                    result = txResponse;
+                    transactionResult = result.meta?.TransactionResult || result.engine_result;
+                    txHash = result.hash;
+                }
                 
                 if (transactionResult === 'tesSUCCESS' || transactionResult === 'tecPATH_DRY') {
                     // Success!
-                    const txHash = result?.hash || result?.tx_json?.hash;
                     const explorerUrl = `https://testnet.xrpl.org/transactions/${txHash}`;
                     
                     resultDiv.innerHTML = `
