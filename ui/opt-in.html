@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opt In - GuidanceGate</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .issuer-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+        }
+        .issuer-info h2 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+        .issuer-info p {
+            color: #666;
+            line-height: 1.6;
+        }
+        .explanation {
+            background: #e8f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+        }
+        .explanation h3 {
+            color: #1976D2;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .explanation ul {
+            margin-left: 20px;
+            color: #555;
+            line-height: 1.8;
+        }
+        .explanation li {
+            margin: 8px 0;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .success {
+            background: #4CAF50;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .success h3 {
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+        .error {
+            background: #f44336;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .error h3 {
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+        .tx-hash {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            word-break: break-all;
+            background: rgba(255,255,255,0.2);
+            padding: 8px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        a {
+            color: white;
+            text-decoration: underline;
+        }
+        a:hover {
+            opacity: 0.9;
+        }
+        .return-btn {
+            background: #4CAF50;
+            margin-top: 15px;
+        }
+        .retry-btn {
+            background: #f44336;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Opt In to Guidance Issuer</h1>
+        <p class="subtitle">Create an explicit on-chain opt-in via XRPL trustline</p>
+        
+        <div id="loading" class="loading">Loading issuer information...</div>
+        
+        <div id="content" style="display: none;">
+            <div class="issuer-info">
+                <h2 id="issuer-name"></h2>
+                <p id="issuer-description"></p>
+            </div>
+            
+            <div class="explanation">
+                <h3>What is this?</h3>
+                <p>This trustline is an <strong>explicit opt-in/consent signal</strong>.</p>
+                <ul>
+                    <li>It does <strong>not</strong> send money</li>
+                    <li>It does <strong>not</strong> cost money (only a small XRP reserve)</li>
+                    <li>You can <strong>remove it later</strong> at any time</li>
+                    <li>It gives you access to resources from this verified issuer</li>
+                </ul>
+            </div>
+            
+            <button id="opt-in-btn" onclick="createTrustline()">
+                Opt In with Crossmark
+            </button>
+            
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/@xrplf/crossmark@latest/dist/index.umd.js"></script>
+    <script>
+        // Get API base URL (works for both localhost and Vercel)
+        const API_BASE = window.location.origin;
+        
+        // Get issuer from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const issuerKey = urlParams.get('issuer');
+        const issuerAddress = urlParams.get('issuer_address');
+        const currency = urlParams.get('currency');
+        
+        let issuerInfo = {};
+        
+        // Load issuer info
+        async function loadIssuerInfo() {
+            if (issuerKey) {
+                // Load from API
+                try {
+                    const response = await fetch(`${API_BASE}/api/issuer-info/${issuerKey}`);
+                    if (!response.ok) {
+                        throw new Error(`Failed to load issuer: ${response.statusText}`);
+                    }
+                    issuerInfo = await response.json();
+                } catch (error) {
+                    document.getElementById('loading').innerHTML = 
+                        `<div class="error"><h3>Error</h3><p>${error.message}</p><p>Please check the URL and try again.</p></div>`;
+                    return;
+                }
+            } else if (issuerAddress && currency) {
+                // Direct parameters
+                issuerInfo = {
+                    address: issuerAddress,
+                    currency: currency,
+                    name: 'Guidance Issuer',
+                    description: 'Verified financial guidance provider'
+                };
+            } else {
+                document.getElementById('loading').innerHTML = 
+                    '<div class="error"><h3>Missing Information</h3><p>Please use ?issuer=KEY or ?issuer_address=...&currency=...</p></div>';
+                return;
+            }
+            
+            // Display issuer info
+            document.getElementById('issuer-name').textContent = issuerInfo.name;
+            document.getElementById('issuer-description').textContent = issuerInfo.description;
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+        }
+        
+        // Create trustline via Crossmark
+        async function createTrustline() {
+            const btn = document.getElementById('opt-in-btn');
+            btn.disabled = true;
+            btn.textContent = 'Connecting to Crossmark...';
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '';
+            
+            try {
+                // Check if Crossmark is available
+                if (!window.crossmark) {
+                    throw new Error('Crossmark wallet not found. Please install Crossmark extension from https://crossmark.io');
+                }
+                
+                // Get user's wallet address
+                btn.textContent = 'Requesting wallet connection...';
+                const signInResponse = await window.crossmark.signInAndWait();
+                const userAddress = signInResponse.address;
+                
+                btn.textContent = 'Creating trustline...';
+                
+                // Create TrustSet transaction
+                const trustSet = {
+                    TransactionType: 'TrustSet',
+                    Account: userAddress,
+                    LimitAmount: {
+                        currency: issuerInfo.currency,
+                        issuer: issuerInfo.address,
+                        value: '1000000000'
+                    }
+                };
+                
+                // Sign and submit via Crossmark
+                const txResponse = await window.crossmark.signAndSubmitAndWait(trustSet);
+                
+                if (txResponse.response.result.meta.TransactionResult === 'tesSUCCESS') {
+                    // Success!
+                    const txHash = txResponse.response.result.hash;
+                    const explorerUrl = `https://testnet.xrpl.org/transactions/${txHash}`;
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Opt-in Complete!</h3>
+                            <p>Your trustline has been created successfully on the XRPL ledger.</p>
+                            <p class="tx-hash">Transaction: ${txHash}</p>
+                            <p><a href="${explorerUrl}" target="_blank">View on XRPL Explorer →</a></p>
+                            <button onclick="returnToDify()" class="return-btn">
+                                Return to GuidanceGate
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    throw new Error('Transaction failed: ' + txResponse.response.result.meta.TransactionResult);
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Opt-in Failed</h3>
+                        <p>${error.message}</p>
+                        <button onclick="createTrustline()" class="retry-btn">
+                            Retry
+                        </button>
+                    </div>
+                `;
+                btn.disabled = false;
+                btn.textContent = 'Opt In with Crossmark';
+            }
+        }
+        
+        function returnToDify() {
+            // Return to Dify agent
+            // You can customize this URL to your Dify instance
+            const difyUrl = urlParams.get('return_to') || 'https://your-dify-instance.com/chat';
+            window.location.href = difyUrl;
+        }
+        
+        // Load on page load
+        loadIssuerInfo();
+    </script>
+</body>
+</html>
+

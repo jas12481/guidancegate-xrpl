@@ -1,0 +1,5 @@
+# Vercel serverless functions don't need requirements.txt
+# Dependencies are handled by Vercel's Python runtime
+# But we need to ensure xrpl-py is available
+# Vercel will use the root requirements.txt
+
