@@ -414,30 +414,17 @@
                 return;
             }
 
-            const api = window.crossmark.api;
+            // Use the wallet address we already have from connectWallet()
+            const userAddress = walletAddress;
             
-            // Get user's wallet address
-            let userAddress;
-            try {
-                // Use the same connection method from opt-in.html
-                const sdkPaths = [api.sdk, api.sdk?.async];
-                for (const sdkPath of sdkPaths) {
-                    if (sdkPath && typeof sdkPath.signInAndWait === 'function') {
-                        const signInResult = await sdkPath.signInAndWait();
-                        userAddress = signInResult.response?.address || signInResult.address;
-                        if (userAddress) break;
-                    }
-                }
-
-                if (!userAddress) {
-                    throw new Error('Could not get wallet address');
-                }
-            } catch (e) {
-                alert('Failed to connect to wallet: ' + e.message);
+            if (!userAddress) {
+                alert('Wallet not connected. Please refresh the page and connect your wallet.');
                 btn.disabled = false;
                 btn.textContent = originalText;
                 return;
             }
+
+            const api = window.crossmark.api;
 
             // For free products, just redirect
             if (product.price === 'Free' || product.price_xrp === '0') {
@@ -453,11 +440,12 @@
             const memoText = `Product: ${productId}`;
             const memoHex = Array.from(memoText).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
             
+            // XRPL Payment transaction - sending XRP from user to issuer
             const payment = {
                 TransactionType: 'Payment',
                 Account: userAddress,
                 Destination: issuerData.issuer_address,
-                Amount: product.price_xrp, // XRP amount as string
+                Amount: product.price_xrp, // XRP amount as string (e.g., "6" for 6 XRP)
                 Memos: [
                     {
                         Memo: {
