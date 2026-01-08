@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Available Products - GuidanceGate</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        .product-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+        }
+        .product-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        .product-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .product-description {
+            color: #666;
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+        .product-price {
+            color: #4CAF50;
+            font-weight: 600;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+        .purchase-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .purchase-btn:hover {
+            background: #5568d3;
+        }
+        .purchase-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Available Products & Services</h1>
+        <p class="subtitle">Purchase resources from Community Aid Financial Services</p>
+        <div id="content">
+            <div class="loading">Connecting to wallet...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const urlParams = new URLSearchParams(window.location.search);
+        const issuerKey = urlParams.get('issuer') || 'community_aid';
+        let walletAddress = null;
+        let issuerData = null;
+
+        async function connectWallet() {
+            // Wait for Crossmark extension to inject
+            let crossmark = null;
+            for (let i = 0; i < 10; i++) {
+                crossmark = window.crossmark;
+                if (crossmark) break;
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+
+            // Check if Crossmark is available
+            if (!crossmark) {
+                document.getElementById('content').innerHTML = `
+                    <div class="error">
+                        <h3>Crossmark Required</h3>
+                        <p>Please install Crossmark wallet to view products.</p>
+                    </div>
+                `;
+                return null;
+            }
+
+            const api = crossmark.api || crossmark;
+            
+            // Get wallet address using same method as opt-in.html
+            const sdkPaths = [api.sdk, api.sdk?.async];
+            for (const sdkPath of sdkPaths) {
+                if (sdkPath && typeof sdkPath.signInAndWait === 'function') {
+                    try {
+                        const signInResult = await sdkPath.signInAndWait();
+                        walletAddress = signInResult.response?.address || signInResult.address;
+                        if (walletAddress && walletAddress.startsWith('r')) {
+                            return walletAddress;
+                        }
+                    } catch (e) {
+                        console.log('signInAndWait failed:', e.message);
+                    }
+                }
+            }
+            
+            return null;
+        }
+
+        async function loadProducts() {
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = '<div class="loading">Connecting to wallet...</div>';
+            
+            // First, connect to wallet
+            walletAddress = await connectWallet();
+            
+            if (!walletAddress) {
+                contentDiv.innerHTML = `
+                    <div class="error">
+                        <h3>Wallet Connection Required</h3>
+                        <p>Please connect your Crossmark wallet to view products.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            contentDiv.innerHTML = '<div class="loading">Loading products...</div>';
+
+            try {
+                const response = await fetch(
+                    `${API_BASE}/api/issuer-products?issuer=${issuerKey}&wallet_address=${walletAddress}`
+                );
+                const data = await response.json();
+
+                if (data.error) {
+                    if (data.error === 'Trustline required') {
+                        contentDiv.innerHTML = `
+                            <div class="error">
+                                <h3>❌ Trustline Required</h3>
+                                <p>${data.message}</p>
+                                <p><a href="${data.opt_in_url}">Opt In Now →</a></p>
+                            </div>
+                        `;
+                    } else {
+                        contentDiv.innerHTML = `
+                            <div class="error">
+                                <h3>Error</h3>
+                                <p>${data.error}</p>
+                            </div>
+                        `;
+                    }
+                    return;
+                }
+
+                issuerData = data;
+
+                if (data.products && data.products.length > 0) {
+                    contentDiv.innerHTML = `
+                        <div class="success">
+                            ✅ You have access to ${data.products.length} products from ${data.issuer}
+                        </div>
+                        ${data.products.map(product => `
+                            <div class="product-card">
+                                <div class="product-name">${product.name}</div>
+                                <div class="product-description">${product.description}</div>
+                                <div class="product-price">${product.price}</div>
+                                <button class="purchase-btn" onclick="purchaseProduct('${product.id}', ${JSON.stringify(product).replace(/"/g, '&quot;')})" id="btn-${product.id}">
+                                    ${product.price === 'Free' ? 'Enroll Now →' : `Purchase (${product.price}) →`}
+                                </button>
+                            </div>
+                        `).join('')}
+                    `;
+                } else {
+                    contentDiv.innerHTML = `
+                        <div class="error">
+                            <p>No products available at this time.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                contentDiv.innerHTML = `
+                    <div class="error">
+                        <h3>Error Loading Products</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function purchaseProduct(productId, product) {
+            const btn = document.getElementById(`btn-${productId}`);
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            // Check if Crossmark is available
+            if (!window.crossmark) {
+                alert('Please install Crossmark wallet to make purchases');
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+
+            const api = window.crossmark.api;
+            
+            // Get user's wallet address
+            let userAddress;
+            try {
+                // Use the same connection method from opt-in.html
+                const sdkPaths = [api.sdk, api.sdk?.async];
+                for (const sdkPath of sdkPaths) {
+                    if (sdkPath && typeof sdkPath.signInAndWait === 'function') {
+                        const signInResult = await sdkPath.signInAndWait();
+                        userAddress = signInResult.response?.address || signInResult.address;
+                        if (userAddress) break;
+                    }
+                }
+
+                if (!userAddress) {
+                    throw new Error('Could not get wallet address');
+                }
+            } catch (e) {
+                alert('Failed to connect to wallet: ' + e.message);
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+
+            // For free products, just redirect
+            if (product.price === 'Free' || product.price_xrp === '0') {
+                alert('✅ Enrolling in free product...');
+                window.open(product.access_url, '_blank');
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+
+            // Create payment transaction
+            // Convert product ID to hex for memo
+            const memoText = `Product: ${productId}`;
+            const memoHex = Array.from(memoText).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+            
+            const payment = {
+                TransactionType: 'Payment',
+                Account: userAddress,
+                Destination: issuerData.issuer_address,
+                Amount: product.price_xrp, // XRP amount as string
+                Memos: [
+                    {
+                        Memo: {
+                            MemoData: memoHex
+                        }
+                    }
+                ]
+            };
+
+            // Submit via Crossmark
+            try {
+                const submitSdkPaths = [api.sdk?.async, api.sdk];
+                let txResponse;
+                
+                for (const sdkPath of submitSdkPaths) {
+                    if (sdkPath && typeof sdkPath.signAndSubmitAndWait === 'function') {
+                        txResponse = await sdkPath.signAndSubmitAndWait(payment);
+                        break;
+                    }
+                }
+
+                // Parse response
+                let transactionResult, txHash;
+                if (txResponse?.response?.result) {
+                    transactionResult = txResponse.response.result.meta?.TransactionResult;
+                    txHash = txResponse.response.result.hash;
+                } else if (txResponse?.result) {
+                    transactionResult = txResponse.result.meta?.TransactionResult || txResponse.result.engine_result;
+                    txHash = txResponse.result.hash;
+                } else {
+                    transactionResult = txResponse.meta?.TransactionResult || txResponse.engine_result;
+                    txHash = txResponse.hash;
+                }
+
+                if (transactionResult === 'tesSUCCESS') {
+                    alert(`✅ Purchase successful! Transaction: ${txHash}\n\nRedirecting to product...`);
+                    window.open(product.access_url, '_blank');
+                } else {
+                    alert(`Purchase failed: ${transactionResult}. Please try again.`);
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            } catch (e) {
+                alert('Purchase error: ' + e.message);
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        // Wait for Crossmark to be available
+        window.addEventListener('load', () => {
+            setTimeout(loadProducts, 500);
+        });
+    </script>
+</body>
+</html>

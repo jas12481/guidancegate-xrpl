@@ -32,7 +32,45 @@ VERIFIED_ISSUERS = {
             "Safe financial product information"
         ],
         "is_required": True,  # Required - this gates access
-        "purpose": "financial_guidance"
+        "purpose": "financial_guidance",
+        "products": [
+            {
+                "id": "foundations",
+                "name": "Foundations of Financial Literacy Programme",
+                "description": "Structured introduction to everyday financial concepts. Includes understanding income, expenses, savings, debt, and how to read bills and contracts.",
+                "type": "programme",
+                "price": "6 XRP",
+                "price_xrp": "6",
+                "access_url": "https://example.com/foundations-programme"
+            },
+            {
+                "id": "budgeting",
+                "name": "Household Budgeting Starter Toolkit",
+                "description": "Practical budgeting framework with simple weekly and monthly templates. Guidance on prioritizing essential expenses.",
+                "type": "toolkit",
+                "price": "7 XRP",
+                "price_xrp": "7",
+                "access_url": "https://example.com/budgeting-toolkit"
+            },
+            {
+                "id": "emergency",
+                "name": "Emergency Savings Builder",
+                "description": "Step-by-step approach to building financial buffers. Contextualized for Singapore with incremental saving strategies.",
+                "type": "guide",
+                "price": "3 XRP",
+                "price_xrp": "3",
+                "access_url": "https://example.com/emergency-savings"
+            },
+            {
+                "id": "products",
+                "name": "Safe Financial Products Guide",
+                "description": "Educational overview of financial products in Singapore. Clear discussion of fees, obligations, and risks.",
+                "type": "guide",
+                "price": "Free",
+                "price_xrp": "0",
+                "access_url": "https://example.com/safe-products"
+            }
+        ]
     },
      "inclusive_care": {
         "name": "InclusiveCare Finance Network",

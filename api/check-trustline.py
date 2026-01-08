@@ -62,11 +62,25 @@ class handler(BaseHTTPRequestHandler):
             
             opted_in = len(opted_in_issuers) > 0
             
+            # Determine primary issuer for products URL (use first opted-in issuer or community_aid)
+            primary_issuer_key = None
+            if opted_in_issuers:
+                # Find the issuer key for the first opted-in issuer
+                for key, issuer in VERIFIED_ISSUERS.items():
+                    if issuer["name"] == opted_in_issuers[0]:
+                        primary_issuer_key = key
+                        break
+            
+            # Default to community_aid if no match found
+            if not primary_issuer_key:
+                primary_issuer_key = "community_aid"
+            
             response = {
                 'opted_in': opted_in,
                 'opted_in_issuers': opted_in_issuers,
                 'allowed_resources': allowed_resources,
-                'wallet_address': user_address
+                'wallet_address': user_address,
+                'products_url': f'/ui/products.html?issuer={primary_issuer_key}' if opted_in else None
             }
             
             self.wfile.write(json.dumps(response).encode())

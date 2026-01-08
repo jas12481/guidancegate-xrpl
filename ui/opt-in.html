@@ -472,6 +472,9 @@
                                     <h3>✅ Already Opted In!</h3>
                                     <p>You already have a trustline with <strong>${issuerInfo.name}</strong>.</p>
                                     <p>You can now access resources from this issuer.</p>
+                                    <button onclick="viewProducts()" class="return-btn" style="margin-bottom: 10px;">
+                                        View Products & Services →
+                                    </button>
                                     <button onclick="returnToDify()" class="return-btn">
                                         Return to GuidanceGate
                                     </button>
@@ -569,6 +572,9 @@
                             <p>Your trustline has been created successfully on the XRPL ledger.</p>
                             <p class="tx-hash">Transaction: ${txHash}</p>
                             <p><a href="${explorerUrl}" target="_blank">View on XRPL Explorer →</a></p>
+                            <button onclick="viewProducts()" class="return-btn" style="margin-bottom: 10px;">
+                                View Products & Services →
+                            </button>
                             <button onclick="returnToDify()" class="return-btn">
                                 Return to GuidanceGate
                             </button>
@@ -598,6 +604,12 @@
             // You can customize this URL to your Dify instance
             const difyUrl = urlParams.get('return_to') || 'https://your-dify-instance.com/chat';
             window.location.href = difyUrl;
+        }
+        
+        function viewProducts() {
+            // Redirect to products page WITHOUT wallet address (will be fetched from Crossmark)
+            const productsUrl = `${window.location.origin}/ui/products.html?issuer=${issuerKey}`;
+            window.location.href = productsUrl;
         }
         
         // Load on page load
