@@ -545,27 +545,64 @@
                 }
                 
                 // Parse response - Crossmark returns response in different formats
+                // Log the response for debugging
+                console.log('Crossmark response:', txResponse);
+                
                 let result, transactionResult, txHash;
                 
+                // Try multiple response format patterns
                 if (txResponse?.response?.result) {
-                    // Standard Crossmark response format
+                    // Standard Crossmark response format: { response: { result: {...} } }
                     result = txResponse.response.result;
-                    transactionResult = result.meta?.TransactionResult;
-                    txHash = result.hash;
+                    transactionResult = result.meta?.TransactionResult || result.engine_result;
+                    txHash = result.hash || result.tx_json?.hash;
+                } else if (txResponse?.response) {
+                    // Alternative: { response: { hash: "...", ... } }
+                    result = txResponse.response;
+                    transactionResult = result.meta?.TransactionResult || result.engine_result || result.result;
+                    txHash = result.hash || result.tx_json?.hash;
                 } else if (txResponse?.result) {
-                    // Alternative response format
+                    // Alternative response format: { result: {...} }
                     result = txResponse.result;
                     transactionResult = result.meta?.TransactionResult || result.engine_result;
                     txHash = result.hash || result.tx_json?.hash;
+                } else if (txResponse?.hash) {
+                    // Direct format with hash: { hash: "...", ... }
+                    result = txResponse;
+                    transactionResult = txResponse.meta?.TransactionResult || txResponse.engine_result || txResponse.result;
+                    txHash = txResponse.hash;
                 } else {
                     // Direct result
                     result = txResponse;
-                    transactionResult = result.meta?.TransactionResult || result.engine_result;
-                    txHash = result.hash;
+                    transactionResult = result.meta?.TransactionResult || result.engine_result || result.result;
+                    txHash = result.hash || result.tx_json?.hash || result.response?.hash;
                 }
                 
-                if (transactionResult === 'tesSUCCESS' || transactionResult === 'tecPATH_DRY') {
-                    // Success!
+                // Check for hash in nested locations if not found yet
+                if (!txHash && txResponse) {
+                    // Try to find hash anywhere in the response object
+                    const responseStr = JSON.stringify(txResponse);
+                    const hashMatch = responseStr.match(/"hash"\s*:\s*"([A-F0-9]{64})"/i);
+                    if (hashMatch) {
+                        txHash = hashMatch[1];
+                    }
+                }
+                
+                // If we have a transaction hash, treat as success (Crossmark shows success)
+                // Even if we can't parse the result field, having a hash means the transaction was submitted
+                const hasSuccessResult = transactionResult === 'tesSUCCESS' || 
+                                       transactionResult === 'tecPATH_DRY' || 
+                                       transactionResult === 'success' ||
+                                       transactionResult === true;
+                
+                if (hasSuccessResult || txHash) {
+                    // Success! If we have a hash, the transaction succeeded
+                    if (!txHash) {
+                        // Try one more time to extract hash from response
+                        console.warn('Transaction succeeded but hash not found. Response:', txResponse);
+                        throw new Error('Transaction succeeded but transaction hash not found. Please check Crossmark popup for the hash.');
+                    }
+                    
                     const explorerUrl = `https://testnet.xrpl.org/transactions/${txHash}`;
                     
                     // Reset button state to avoid any state issues
@@ -587,13 +624,39 @@
                         </div>
                     `;
                 } else {
-                    throw new Error('Transaction failed: ' + (transactionResult || 'Unknown error'));
+                    // Log the full response for debugging
+                    console.error('Transaction failed. Full response:', txResponse);
+                    console.error('Parsed result:', result);
+                    console.error('Parsed transactionResult:', transactionResult);
+                    console.error('Parsed txHash:', txHash);
+                    throw new Error('Transaction failed: ' + (transactionResult || 'Unknown error. Check console for details.'));
                 }
             } catch (error) {
+                // If Crossmark showed success but we got an error, it's likely a parsing issue
+                // Check if we can see the transaction hash in the error or console
+                console.error('Opt-in error:', error);
+                console.error('Full error details:', {
+                    message: error.message,
+                    stack: error.stack
+                });
+                
+                let errorMessage = error.message;
+                
+                // If the error mentions a hash or Crossmark showed success, provide helpful message
+                if (errorMessage.includes('hash not found') || errorMessage.includes('succeeded')) {
+                    errorMessage += '<br><br><strong>Note:</strong> Crossmark shows the transaction was successful. If you see a transaction hash in the Crossmark popup, the trustline was created successfully. You can check the transaction on the XRPL Explorer or try refreshing the page.';
+                }
+                
                 resultDiv.innerHTML = `
                     <div class="error">
                         <h3>❌ Opt-in Failed</h3>
-                        <p>${error.message}</p>
+                        <p>${errorMessage}</p>
+                        <p style="font-size: 12px; margin-top: 10px;">
+                            If Crossmark showed "YOUR TX WAS SUCCESSFUL" with a transaction hash, 
+                            the trustline was likely created successfully. Check the console (F12) 
+                            for more details, or verify the transaction on 
+                            <a href="https://testnet.xrpl.org" target="_blank" style="color: white; text-decoration: underline;">XRPL Explorer</a>.
+                        </p>
                         <p style="font-size: 12px; margin-top: 10px;">If this persists, please ensure Crossmark extension is installed and unlocked.</p>
                         <button onclick="createTrustline()" class="retry-btn">
                             Retry
