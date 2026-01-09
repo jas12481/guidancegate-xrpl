@@ -466,6 +466,10 @@
                         
                         if (hasThisIssuer) {
                             // User already has trustline - show success and return
+                            // Reset button state properly
+                            btn.disabled = false;
+                            btn.textContent = 'Already Opted In';
+                            
                             const resultDiv = document.getElementById('result');
                             resultDiv.innerHTML = `
                                 <div class="success">
@@ -480,8 +484,6 @@
                                     </button>
                                 </div>
                             `;
-                            btn.textContent = 'Already Opted In';
-                            btn.disabled = true;
                             return;
                         }
                     }
@@ -566,6 +568,10 @@
                     // Success!
                     const explorerUrl = `https://testnet.xrpl.org/transactions/${txHash}`;
                     
+                    // Reset button state to avoid any state issues
+                    btn.disabled = false;
+                    btn.textContent = 'Opt In Complete';
+                    
                     resultDiv.innerHTML = `
                         <div class="success">
                             <h3>✅ Opt-in Complete!</h3>
@@ -607,9 +613,13 @@
         }
         
         function viewProducts() {
-            // Redirect to products page WITHOUT wallet address (will be fetched from Crossmark)
-            const productsUrl = `${window.location.origin}/ui/products.html?issuer=${issuerKey}`;
-            window.location.href = productsUrl;
+            // Add a delay to ensure trustline is fully processed on ledger
+            // This prevents wallet connection errors when redirecting immediately after transaction
+            // Works for all issuers: community_aid, inclusive_care, calm_bridge
+            setTimeout(() => {
+                const productsUrl = `${window.location.origin}/ui/products.html?issuer=${issuerKey}`;
+                window.location.href = productsUrl;
+            }, 1000); // 1 second delay to ensure ledger state is updated
         }
         
         // Load on page load
